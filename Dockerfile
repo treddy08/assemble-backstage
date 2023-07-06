@@ -1,59 +1,66 @@
-# Stage 1 - Create yarn install skeleton layer
-FROM node:16-bullseye-slim AS packages
+# Stage 1 - Install dependencies
+FROM registry.access.redhat.com/ubi9/nodejs-16:latest AS deps
+USER 0
 
-WORKDIR /app
-COPY package.json yarn.lock ./
+# Install yarn
+RUN \
+    curl --silent --location https://dl.yarnpkg.com/rpm/yarn.repo | tee /etc/yum.repos.d/yarn.repo && \
+    dnf install -y yarn
 
-COPY packages packages
+COPY ./package.json ./yarn.lock ./
+COPY ./packages ./packages
 
-# Comment this out if you don't have any internal plugins
-#COPY plugins plugins
+# Remove all files except package.json
+RUN find packages -mindepth 2 -maxdepth 2 \! -name "package.json" -exec rm -rf {} \+
 
-RUN find packages \! -name "package.json" -mindepth 2 -maxdepth 2 -exec rm -rf {} \+
+RUN yarn install --frozen-lockfile --network-timeout 600000
 
-# Stage 2 - Install dependencies and build packages
-FROM node:16-bullseye-slim AS build
+# Stage 2 - Build packages
+FROM registry.access.redhat.com/ubi9/nodejs-16:latest AS build
+USER 0
 
-WORKDIR /app
-COPY --from=packages /app .
-
-# install sqlite3 dependencies
-RUN apt-get update && apt-get install -y libsqlite3-dev python3 cmake g++ && \
-    yarn config set python /usr/bin/python3
-
-RUN yarn install --frozen-lockfile --network-timeout 600000 && rm -rf "$(yarn cache dir)"
+# Install yarn
+RUN \
+    curl --silent --location https://dl.yarnpkg.com/rpm/yarn.repo | tee /etc/yum.repos.d/yarn.repo && \
+    dnf install -y yarn
 
 COPY . .
+COPY --from=deps /opt/app-root/src .
 
 RUN yarn tsc
 RUN yarn --cwd packages/backend build
-# If you have not yet migrated to package roles, use the following command instead:
-# RUN yarn --cwd packages/backend backstage-cli backend:bundle --build-dependencies
 
 # Stage 3 - Build the actual backend image and install production dependencies
-FROM node:16-bullseye-slim
+FROM registry.access.redhat.com/ubi9/nodejs-16-minimal:latest AS runner
+USER 0
 
-WORKDIR /app
+# Install yarn
+RUN \
+    curl --silent --location https://dl.yarnpkg.com/rpm/yarn.repo | tee /etc/yum.repos.d/yarn.repo && \
+    microdnf install -y yarn
+
+# Install gzip for tar and clean up
+RUN microdnf install -y gzip && microdnf clean all
+
+# Switch to nodejs user
+USER 1001
 
 # Copy the install dependencies from the build stage and context
-COPY --from=build /app/yarn.lock /app/package.json /app/packages/backend/dist/skeleton.tar.gz ./
+COPY --from=build /opt/app-root/src/yarn.lock /opt/app-root/src/package.json /opt/app-root/src/packages/backend/dist/skeleton.tar.gz ./
 RUN tar xzf skeleton.tar.gz && rm skeleton.tar.gz
 
-# install sqlite3 dependencies
-RUN apt-get update && \
-    apt-get install -y libsqlite3-dev python3 cmake g++ && \
-    rm -rf /var/lib/apt/lists/* && \
-    yarn config set python /usr/bin/python3
-
-RUN yarn install --frozen-lockfile --production --network-timeout 600000 && rm -rf "$(yarn cache dir)"
+# Install production dependencies
+RUN yarn install --frozen-lockfile --production --network-timeout 600000 && yarn cache clean
 
 # Copy the built packages from the build stage
-COPY --from=build /app/packages/backend/dist/bundle.tar.gz .
+COPY --from=build /opt/app-root/src/packages/backend/dist/bundle.tar.gz .
 RUN tar xzf bundle.tar.gz && rm bundle.tar.gz
 
 # Copy any other files that we need at runtime
-COPY app-config.yaml ./
+COPY ./app-config.yaml .
 
-RUN chmod -R 775 /app 
+# The fix-permissions script is important when operating in environments that dynamically use a random UID at runtime, such as OpenShift.
+# The upstream backstage image does not account for this and it causes the container to fail at runtime.
+RUN fix-permissions ./
 
 CMD ["node", "packages/backend", "--config", "app-config.yaml"]
