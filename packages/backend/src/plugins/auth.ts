@@ -115,7 +115,7 @@ export default async function createPlugin(
         signIn: {
           async resolver({ result }, ctx) {
             const name = result.getHeader('x-forwarded-preferred-username');
-            console.log('Auth info ' + result);
+            console.log(JSON.stringify(result));
             if (!name) {
               throw new Error('Request did not contain a user');
             }
