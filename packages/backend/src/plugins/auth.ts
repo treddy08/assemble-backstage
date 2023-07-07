@@ -114,32 +114,17 @@ export default async function createPlugin(
       oauth2Proxy: providers.oauth2Proxy.create({
         signIn: {
           async resolver({ result }, ctx) {
-            const name = result.getHeader('x-forwarded-preferred-username');
-            if (!name) {
-              throw new Error('Request did not contain a user');
-            }
-
-            try {
-              // Attempts to sign in existing user
-              const signedInUser = await ctx.signInWithCatalogUser({
-                entityRef: { name },
-              });
-
-              return Promise.resolve(signedInUser);
-            } catch (e) {
-              // Create stub user
-              const userEntityRef = stringifyEntityRef({
-                kind: 'User',
-                name: name,
-                namespace: DEFAULT_NAMESPACE,
-              });
-              return ctx.issueToken({
-                claims: {
-                  sub: userEntityRef,
-                  ent: [userEntityRef],
-                },
-              });
-            }
+            const entityRef = stringifyEntityRef({
+              kind: 'user',
+              namespace: DEFAULT_NAMESPACE,
+              name: result.getHeader('x-forwarded-user')!,
+            });
+            return ctx.issueToken({
+              claims: {
+                sub: entityRef,
+                ent: [entityRef],
+              },
+            });
           },
         },
       }),
