@@ -42,71 +42,71 @@ export default async function createPlugin(
       //       It is important that each real user always gets resolved to
       //       the same sign-in identity. The code below will not do that.
       //       It is here for demo purposes only.
-      github: providers.github.create({
-        signIn: {
-          async resolver({ result: { fullProfile } }, ctx) {
-            const userId = fullProfile.username;
-            if (!userId) {
-              throw new Error(
-                `GitHub user profile does not contain a username`,
-              );
-            }
+      // github: providers.github.create({
+      //   signIn: {
+      //     async resolver({ result: { fullProfile } }, ctx) {
+      //       const userId = fullProfile.username;
+      //       if (!userId) {
+      //         throw new Error(
+      //           `GitHub user profile does not contain a username`,
+      //         );
+      //       }
 
-            const userEntityRef = stringifyEntityRef({
-              kind: 'User',
-              name: userId,
-              namespace: DEFAULT_NAMESPACE,
-            });
+      //       const userEntityRef = stringifyEntityRef({
+      //         kind: 'User',
+      //         name: userId,
+      //         namespace: DEFAULT_NAMESPACE,
+      //       });
 
-            return ctx.issueToken({
-              claims: {
-                sub: userEntityRef,
-                ent: [userEntityRef],
-              },
-            });
-          },
-        },
-      }),
-      gitlab: providers.gitlab.create({
-        signIn: {
-          async resolver({ result: { fullProfile } }, ctx) {
-            return ctx.signInWithCatalogUser({
-              entityRef: {
-                name: fullProfile.id,
-              },
-            });
-          },
-        },
-      }),
-      microsoft: providers.microsoft.create({
-        signIn: {
-          resolver:
-            providers.microsoft.resolvers.emailMatchingUserEntityAnnotation(),
-        },
-      }),
-      google: providers.google.create({
-        signIn: {
-          resolver:
-            providers.google.resolvers.emailLocalPartMatchingUserEntityName(),
-        },
-      }),
-      okta: providers.okta.create({
-        signIn: {
-          resolver:
-            providers.okta.resolvers.emailMatchingUserEntityAnnotation(),
-        },
-      }),
-      onelogin: providers.onelogin.create({
-        signIn: {
-          async resolver({ result: { fullProfile } }, ctx) {
-            return ctx.signInWithCatalogUser({
-              entityRef: {
-                name: fullProfile.id,
-              },
-            });
-          },
-        },
-      }),
+      //       return ctx.issueToken({
+      //         claims: {
+      //           sub: userEntityRef,
+      //           ent: [userEntityRef],
+      //         },
+      //       });
+      //     },
+      //   },
+      // }),
+      // gitlab: providers.gitlab.create({
+      //   signIn: {
+      //     async resolver({ result: { fullProfile } }, ctx) {
+      //       return ctx.signInWithCatalogUser({
+      //         entityRef: {
+      //           name: fullProfile.id,
+      //         },
+      //       });
+      //     },
+      //   },
+      // }),
+      // microsoft: providers.microsoft.create({
+      //   signIn: {
+      //     resolver:
+      //       providers.microsoft.resolvers.emailMatchingUserEntityAnnotation(),
+      //   },
+      // }),
+      // google: providers.google.create({
+      //   signIn: {
+      //     resolver:
+      //       providers.google.resolvers.emailLocalPartMatchingUserEntityName(),
+      //   },
+      // }),
+      // okta: providers.okta.create({
+      //   signIn: {
+      //     resolver:
+      //       providers.okta.resolvers.emailMatchingUserEntityAnnotation(),
+      //   },
+      // }),
+      // onelogin: providers.onelogin.create({
+      //   signIn: {
+      //     async resolver({ result: { fullProfile } }, ctx) {
+      //       return ctx.signInWithCatalogUser({
+      //         entityRef: {
+      //           name: fullProfile.id,
+      //         },
+      //       });
+      //     },
+      //   },
+      // }),
 
       // This is an example of how to configure the OAuth2Proxy provider as well
       // as how to sign a user in without a matching user entity in the catalog.
